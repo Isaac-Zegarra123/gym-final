@@ -1,4 +1,7 @@
-const BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+const BASE_RAW = import.meta.env.VITE_API_URL || "http://localhost:4000";
+
+// 🔥 elimina slash final si existe
+const BASE = BASE_RAW.replace(/\/$/, "");
 
 export const api = async (path, options = {}) => {
   const token = localStorage.getItem("token");
@@ -19,7 +22,7 @@ export const api = async (path, options = {}) => {
   }
 
   if (!res.ok) {
-    console.error("API ERROR:", data); // 🔥 IMPORTANTE
+    console.error("API ERROR:", data);
     throw new Error(data.error || data.message || "Error en la petición");
   }
 
