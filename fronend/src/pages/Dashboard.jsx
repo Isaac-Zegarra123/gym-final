@@ -8,18 +8,15 @@ import { useWorkoutStore } from "../store/workoutStore";
 export default function Dashboard() {
   const { user, logout } = useAuthStore();
   const cargarProgreso = useWorkoutStore((s) => s.cargarProgreso);
-
   const navigate = useNavigate();
 
   useEffect(() => {
-    const run = () => cargarProgreso();
-
     if ("requestIdleCallback" in window) {
-      requestIdleCallback(run);
+      requestIdleCallback(() => cargarProgreso());
     } else {
-      setTimeout(run, 200);
+      setTimeout(() => cargarProgreso(), 200);
     }
-  }, []);
+  }, [cargarProgreso]);
 
   const handleLogout = () => {
     logout();
@@ -29,33 +26,32 @@ export default function Dashboard() {
   return (
     <div className="app">
       <nav className="navbar">
-        <div className="navbar-brand">
-          <i style={{ color: "#facc15" }}></i> GymApp
-        </div>
+        <div className="navbar-brand">GymApp</div>
         <div className="navbar-right">
-          <span className="user-email">
-            <i style={{ fontSize: 12, color: "#94a3b8" }}></i> {user?.email}
-          </span>
+          <span className="user-email">{user?.email}</span>
           {user?.role === "admin" && (
             <Link to="/admin" className="btn-admin">
-              <i></i> Admin
+              Admin
             </Link>
           )}
           <button className="btn-logout" onClick={handleLogout}>
-            <i></i> Salir
+            Salir
           </button>
         </div>
       </nav>
 
       <main className="container">
         <div className="hero">
-          <div className="hero-chart">
+          <div className="hero-chart" style={{ minHeight: 300, width: "100%" }}>
             <h1>Bienvenido{user ? `, ${user.name}` : ""}</h1>
             <h2>Tu progreso</h2>
-            <ProgressChart />
+            <ProgressChart /> {/* carga inmediata, interactivo */}
           </div>
         </div>
-        <PlanRutinas />
+
+        <div style={{ minHeight: 200 }}>
+          <PlanRutinas /> {/* carga inmediata, interactivo */}
+        </div>
       </main>
     </div>
   );
