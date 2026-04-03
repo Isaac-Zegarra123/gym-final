@@ -50,7 +50,7 @@ export default function Dashboard() {
       <main className="container">
         <div className="hero">
           <div className="hero-chart">
-            <h1>Bienvenido, {user?.name} </h1>
+            <h1>Bienvenido{user ? `, ${user.name}` : ""}</h1>
             <h2>Tu progreso</h2>
             <ProgressChart />
           </div>

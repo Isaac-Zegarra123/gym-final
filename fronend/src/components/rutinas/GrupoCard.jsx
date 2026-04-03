@@ -1,13 +1,12 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, memo } from "react";
 import { useWorkoutStore } from "../../store/workoutStore";
 
-export default function GrupoCard({ grupo }) {
-  const registrarEjercicio = useWorkoutStore((s) => s.registrarEjercicio);
-  const historialSeries = useWorkoutStore(
-    (s) => s.historialPorNivel[s.nivelActivo],
-  );
+function GrupoCard({ grupo }) {
+  const { registrarEjercicio, historialSeries } = useWorkoutStore((s) => ({
+    registrarEjercicio: s.registrarEjercicio,
+    historialSeries: s.historialPorNivel[s.nivelActivo],
+  }));
 
-  // Inicializar checks desde el historial guardado en MongoDB
   const [completados, setCompletados] = useState(() => {
     const guardados = historialSeries
       .filter((e) => e.grupo === grupo.grupo && e.completado)
@@ -15,63 +14,87 @@ export default function GrupoCard({ grupo }) {
     return new Set(guardados);
   });
 
-  // Re-sincronizar cuando el historial cambia (ej: al cargar desde MongoDB)
   useEffect(() => {
     const guardados = historialSeries
       .filter((e) => e.grupo === grupo.grupo && e.completado)
       .map((e) => e.ejercicio);
+
     setCompletados(new Set(guardados));
-  }, [historialSeries]);
+  }, [historialSeries, grupo.grupo]);
 
   const [timerActivo, setTimerActivo] = useState(false);
   const [timerEjercicio, setTimerEjercicio] = useState("");
   const [segundosTotal, setSegundosTotal] = useState(60);
   const [segundosLeft, setSegundosLeft] = useState(60);
 
-  const toggleCompletado = (ej) => {
-    const estaCompleto = completados.has(ej.nombre);
-    setCompletados((prev) => {
-      const next = new Set(prev);
-      if (estaCompleto) next.delete(ej.nombre);
-      else next.add(ej.nombre);
-      return next;
-    });
-    registrarEjercicio(grupo.grupo, ej.nombre, !estaCompleto);
-  };
+  const intervalRef = useRef(null);
 
   const iniciarTimer = (ej) => {
     const total = parseInt(ej.descanso);
+
+    if (intervalRef.current) clearInterval(intervalRef.current);
+
     setTimerEjercicio(ej.nombre);
     setSegundosTotal(total);
     setSegundosLeft(total);
     setTimerActivo(true);
 
-    startTimeRef.current = Date.now();
+    const start = Date.now();
 
-    const tick = () => {
-      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+    intervalRef.current = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - start) / 1000);
       const left = total - elapsed;
 
       if (left <= 0) {
+        clearInterval(intervalRef.current);
         setTimerActivo(false);
         setTimerEjercicio("");
         return;
       }
 
       setSegundosLeft(left);
-      requestAnimationFrame(tick);
-    };
-
-    requestAnimationFrame(tick);
+    }, 1000);
   };
 
-  const todosCompletados = grupo.ejercicios.every((e) =>
-    completados.has(e.nombre),
+  const cancelarTimer = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    setTimerActivo(false);
+    setTimerEjercicio("");
+  };
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
+
+  const toggleCompletado = (ej) => {
+    const estaCompleto = completados.has(ej.nombre);
+
+    setCompletados((prev) => {
+      const next = new Set(prev);
+      if (estaCompleto) next.delete(ej.nombre);
+      else next.add(ej.nombre);
+      return next;
+    });
+
+    registrarEjercicio(grupo.grupo, ej.nombre, !estaCompleto);
+  };
+
+  const { todosCompletados, progreso } = useMemo(() => {
+    const total = grupo.ejercicios.length;
+    const completadosCount = completados.size;
+
+    return {
+      todosCompletados: completadosCount === total,
+      progreso: Math.round((completadosCount / total) * 100),
+    };
+  }, [completados, grupo.ejercicios]);
+
+  const porcentajeTimer = useMemo(
+    () => ((segundosLeft / segundosTotal) * 100).toFixed(1),
+    [segundosLeft, segundosTotal],
   );
-  const progreso = Math.round(
-    (completados.size / grupo.ejercicios.length) * 100,
-  );
-  const porcentajeTimer = ((segundosLeft / segundosTotal) * 100).toFixed(1);
 
   return (
     <div className={`grupo-card${todosCompletados ? " grupo-completado" : ""}`}>
@@ -84,7 +107,7 @@ export default function GrupoCard({ grupo }) {
             width: 20,
             textAlign: "center",
           }}
-        ></i>
+        />
         <span className="grupo-nombre">{grupo.grupo}</span>
         <span
           className="grupo-progreso"
@@ -98,33 +121,29 @@ export default function GrupoCard({ grupo }) {
         <div
           className="barra-fill"
           style={{ width: progreso + "%", background: grupo.color }}
-        ></div>
+        />
       </div>
 
       {timerActivo && (
         <div className="timer-banner">
           <div className="timer-info">
-            <span>
-              <i
-                className="fa-solid fa-stopwatch"
-                style={{ color: "#22c55e" }}
-              ></i>{" "}
-              Descansando — {timerEjercicio}
-            </span>
+            <span>Descansando — {timerEjercicio}</span>
             <span
               className={`timer-segundos${segundosLeft <= 5 ? " timer-urgente" : ""}`}
             >
               {segundosLeft}s
             </span>
           </div>
+
           <div className="timer-barra-fondo">
             <div
               className={`timer-barra-fill${segundosLeft <= 5 ? " timer-urgente-fill" : ""}`}
               style={{ width: porcentajeTimer + "%" }}
-            ></div>
+            />
           </div>
+
           <button className="btn-cancelar-timer" onClick={cancelarTimer}>
-            <i className="fa-solid fa-xmark"></i> Cancelar
+            Cancelar
           </button>
         </div>
       )}
@@ -139,50 +158,60 @@ export default function GrupoCard({ grupo }) {
             <th>Descanso</th>
           </tr>
         </thead>
+
         <tbody>
-          {grupo.ejercicios.map((ej) => (
-            <tr
-              key={ej.nombre}
-              className={completados.has(ej.nombre) ? "fila-completada" : ""}
-            >
-              <td>
-                <button
-                  className={`btn-check${completados.has(ej.nombre) ? " checked" : ""}`}
-                  onClick={() => toggleCompletado(ej)}
-                  aria-label={`${completados.has(ej.nombre) ? "Desmarcar" : "Marcar"} ejercicio ${ej.nombre}`}
-                  aria-pressed={completados.has(ej.nombre)}
-                >
-                  <i className="fa-solid fa-check" aria-hidden="true"></i>
-                </button>
-              </td>
-              <td
-                className={`td-nombre${completados.has(ej.nombre) ? " tachado" : ""}`}
-              >
-                {ej.nombre}
-              </td>
-              <td>
-                <span className="badge-series">{ej.series}</span>
-              </td>
-              <td>
-                <span className="badge-reps">{ej.reps}</span>
-              </td>
-              <td>
-                <button
-                  className={`btn-timer${timerEjercicio === ej.nombre && timerActivo ? " timer-en-curso" : ""}`}
-                  onClick={() => iniciarTimer(ej)}
-                  aria-label={`Iniciar descanso de ${ej.descanso} para ${ej.nombre}`}
-                ></button>
-              </td>
-            </tr>
-          ))}
+          {grupo.ejercicios.map((ej) => {
+            const checked = completados.has(ej.nombre);
+
+            return (
+              <tr key={ej.nombre} className={checked ? "fila-completada" : ""}>
+                <td>
+                  <button
+                    className={`btn-check${checked ? " checked" : ""}`}
+                    onClick={() => toggleCompletado(ej)}
+                    aria-label={`${checked ? "Desmarcar" : "Marcar"} ${ej.nombre}`}
+                    aria-pressed={checked}
+                  >
+                    ✔
+                  </button>
+                </td>
+
+                <td className={`td-nombre${checked ? " tachado" : ""}`}>
+                  {ej.nombre}
+                </td>
+
+                <td>
+                  <span className="badge-series">{ej.series}</span>
+                </td>
+
+                <td>
+                  <span className="badge-reps">{ej.reps}</span>
+                </td>
+
+                <td>
+                  <button
+                    className={`btn-timer${
+                      timerEjercicio === ej.nombre && timerActivo
+                        ? " timer-en-curso"
+                        : ""
+                    }`}
+                    onClick={() => iniciarTimer(ej)}
+                    aria-label={`Descanso ${ej.descanso}`}
+                  >
+                    ⏱
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 
       {todosCompletados && (
-        <div className="badge-completado">
-          <i className="fa-solid fa-trophy"></i> ¡Grupo completado!
-        </div>
+        <div className="badge-completado">🏆 ¡Grupo completado!</div>
       )}
     </div>
   );
 }
+
+export default memo(GrupoCard);
