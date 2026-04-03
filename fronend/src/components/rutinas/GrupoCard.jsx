@@ -1,26 +1,39 @@
-import { useState, useEffect, useMemo, useRef, memo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useWorkoutStore } from "../../store/workoutStore";
 
-function GrupoCard({ grupo }) {
-  const { registrarEjercicio, historialSeries } = useWorkoutStore((s) => ({
-    registrarEjercicio: s.registrarEjercicio,
-    historialSeries: s.historialPorNivel?.[s.nivelActivo] || [],
-  }));
+export default function GrupoCard({ grupo }) {
+  // ✅ SIN objeto (evita loop infinito)
+  const registrarEjercicio = useWorkoutStore((s) => s.registrarEjercicio);
+
+  const historialSeries = useWorkoutStore(
+    (s) => s.historialPorNivel?.[s.nivelActivo] || [],
+  );
+
+  // ---------------- ESTADO ----------------
 
   const [completados, setCompletados] = useState(() => {
     const guardados = historialSeries
       .filter((e) => e.grupo === grupo.grupo && e.completado)
       .map((e) => e.ejercicio);
+
     return new Set(guardados);
   });
 
+  // ✅ FIX LOOP INFINITO
   useEffect(() => {
     const guardados = historialSeries
       .filter((e) => e.grupo === grupo.grupo && e.completado)
       .map((e) => e.ejercicio);
 
-    setCompletados(new Set(guardados));
+    const nuevo = new Set(guardados);
+
+    setCompletados((prev) => {
+      if (prev.size === nuevo.size) return prev;
+      return nuevo;
+    });
   }, [historialSeries, grupo.grupo]);
+
+  // ---------------- TIMER ----------------
 
   const [timerActivo, setTimerActivo] = useState(false);
   const [timerEjercicio, setTimerEjercicio] = useState("");
@@ -30,7 +43,7 @@ function GrupoCard({ grupo }) {
   const intervalRef = useRef(null);
 
   const iniciarTimer = (ej) => {
-    const total = parseInt(ej.descanso);
+    const total = Number(ej.descanso.replace(/\D/g, "")) || 60;
 
     if (intervalRef.current) clearInterval(intervalRef.current);
 
@@ -62,17 +75,20 @@ function GrupoCard({ grupo }) {
     setTimerEjercicio("");
   };
 
+  // limpiar al desmontar
   useEffect(() => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, []);
 
+  // ---------------- LOGICA ----------------
+
   const toggleCompletado = (ej) => {
     const estaCompleto = completados.has(ej.nombre);
 
     setCompletados((prev) => {
-      const next = new Set(prev);
+      const next = new Set([...prev]); // ✅ copia segura
       if (estaCompleto) next.delete(ej.nombre);
       else next.add(ej.nombre);
       return next;
@@ -81,6 +97,7 @@ function GrupoCard({ grupo }) {
     registrarEjercicio(grupo.grupo, ej.nombre, !estaCompleto);
   };
 
+  // ✅ MEMO (optimización segura)
   const { todosCompletados, progreso } = useMemo(() => {
     const total = grupo.ejercicios.length;
     const completadosCount = completados.size;
@@ -91,10 +108,11 @@ function GrupoCard({ grupo }) {
     };
   }, [completados, grupo.ejercicios]);
 
-  const porcentajeTimer = useMemo(
-    () => ((segundosLeft / segundosTotal) * 100).toFixed(1),
-    [segundosLeft, segundosTotal],
-  );
+  const porcentajeTimer = useMemo(() => {
+    return ((segundosLeft / segundosTotal) * 100).toFixed(1);
+  }, [segundosLeft, segundosTotal]);
+
+  // ---------------- UI ----------------
 
   return (
     <div className={`grupo-card${todosCompletados ? " grupo-completado" : ""}`}>
@@ -127,9 +145,11 @@ function GrupoCard({ grupo }) {
       {timerActivo && (
         <div className="timer-banner">
           <div className="timer-info">
-            <span>Descansando — {timerEjercicio}</span>
+            <span>⏱ Descansando — {timerEjercicio}</span>
             <span
-              className={`timer-segundos${segundosLeft <= 5 ? " timer-urgente" : ""}`}
+              className={`timer-segundos${
+                segundosLeft <= 5 ? " timer-urgente" : ""
+              }`}
             >
               {segundosLeft}s
             </span>
@@ -137,13 +157,15 @@ function GrupoCard({ grupo }) {
 
           <div className="timer-barra-fondo">
             <div
-              className={`timer-barra-fill${segundosLeft <= 5 ? " timer-urgente-fill" : ""}`}
+              className={`timer-barra-fill${
+                segundosLeft <= 5 ? " timer-urgente-fill" : ""
+              }`}
               style={{ width: porcentajeTimer + "%" }}
             />
           </div>
 
           <button className="btn-cancelar-timer" onClick={cancelarTimer}>
-            Cancelar
+            ✖ Cancelar
           </button>
         </div>
       )}
@@ -213,5 +235,3 @@ function GrupoCard({ grupo }) {
     </div>
   );
 }
-
-export default memo(GrupoCard);
