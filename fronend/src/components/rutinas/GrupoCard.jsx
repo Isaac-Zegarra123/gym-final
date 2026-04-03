@@ -4,7 +4,7 @@ import { useWorkoutStore } from "../../store/workoutStore";
 function GrupoCard({ grupo }) {
   const { registrarEjercicio, historialSeries } = useWorkoutStore((s) => ({
     registrarEjercicio: s.registrarEjercicio,
-    historialSeries: s.historialPorNivel[s.nivelActivo],
+    historialSeries: s.historialPorNivel?.[s.nivelActivo] || [],
   }));
 
   const [completados, setCompletados] = useState(() => {
