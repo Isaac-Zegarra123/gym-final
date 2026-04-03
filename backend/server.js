@@ -1,14 +1,13 @@
 import express from "express";
-import mongoose from "mongoose";
-import cors from "cors";
 import dotenv from "dotenv";
-
+import { connectDB } from "./lib/db.js";
 import authRouter from "./routes/auth.js";
 import trainingsRouter from "./routes/trainings.js";
 import dietsRouter from "./routes/diets.js";
 import progresoRouter from "./routes/progreso.js";
 
 dotenv.config();
+connectDB();
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -29,7 +28,7 @@ app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
   res.setHeader("Access-Control-Allow-Credentials", "true");
 
-  // 🔥 manejar preflight manual
+  // responder preflight
   if (req.method === "OPTIONS") {
     return res.sendStatus(200);
   }
@@ -44,20 +43,11 @@ app.use("/api/trainings", trainingsRouter);
 app.use("/api/diets", dietsRouter);
 app.use("/api/progreso", progresoRouter);
 
+// Health check para Render
 app.get("/", (req, res) => {
-  res.send("API Funcionando 💪");
+  res.json({ status: "ok", message: "GymApp API corriendo" });
 });
 
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("MongoDB conectado");
-
-    app.listen(PORT, () => {
-      console.log(`Servidor corriendo en puerto ${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error("Error MongoDB:", err);
-    process.exit(1);
-  });
+app.listen(PORT, () => {
+  console.log(`Servidor corriendo en http://localhost:${PORT}`);
+});
