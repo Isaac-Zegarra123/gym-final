@@ -27,7 +27,6 @@ export const useAuthStore = create((set) => ({
     localStorage.setItem("token", data.token);
     set({ user: data.user });
 
-    // 🔥 precargar progreso
     import("../store/workoutStore").then(({ useWorkoutStore }) => {
       useWorkoutStore.getState().cargarProgreso();
     });

@@ -104,15 +104,14 @@ body {
 }
 
 .btn-logout {
-  padding: 6px 14px;
-  background: transparent;
-  color: var(--color-text);
-  border: 2px solid var(--color-error);
+  background: #dc2626;
+  color: #ffffff;
+  border: 2px solid #dc2626;
 }
 
 .btn-logout:hover,
 .btn-logout:focus {
-  background: var(--color-error);
+  background: #b91c1c;
   color: var(--color-light);
   transform: scale(1.05);
 }
@@ -232,7 +231,7 @@ body {
 .nivel-desc,
 .leyenda-item {
   font-size: 0.75rem;
-  color: var(--color-text);
+  color: rgb(148, 163, 184);
 }
 
 .stat-nivel {

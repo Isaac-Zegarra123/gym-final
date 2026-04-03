@@ -24,7 +24,6 @@ export const useWorkoutStore = create((set, get) => ({
   cargarProgreso: async () => {
     const { historial } = get();
 
-    // 🔥 evita llamadas innecesarias
     if (historial.length) return;
     set({ cargando: true });
     try {
@@ -42,7 +41,6 @@ export const useWorkoutStore = create((set, get) => ({
         }
       });
 
-      // 🔥 definir nivel activo (última sesión)
       const ultimaSesion = historial?.[0];
 
       set({
@@ -65,7 +63,6 @@ export const useWorkoutStore = create((set, get) => ({
   iniciarSesion: (nivel, ejerciciosTotales) => {
     const { historialPorNivel } = get();
 
-    // 🔥 Si ya existe ese nivel, usarlo
     if (historialPorNivel[nivel]?.length) {
       set({
         nivelActivo: nivel,
@@ -75,7 +72,6 @@ export const useWorkoutStore = create((set, get) => ({
       return;
     }
 
-    // 🔥 Si no existe, crear nuevo
     const nuevo = ejerciciosTotales.map((e) => ({
       grupo: e.grupo,
       ejercicio: e.nombre,
@@ -121,7 +117,6 @@ export const useWorkoutStore = create((set, get) => ({
       },
     }));
 
-    // 🔥 guardar en backend
     const completados = actualizado.filter((e) => e.completado).length;
     const porcentaje = Math.round((completados / actualizado.length) * 100);
 
