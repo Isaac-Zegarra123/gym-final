@@ -1,26 +1,5 @@
-import { useEffect, useRef, useMemo } from "react";
-import {
-  Chart,
-  LineController,
-  LineElement,
-  PointElement,
-  LinearScale,
-  CategoryScale,
-  Tooltip,
-  Filler,
-} from "chart.js";
+import { useEffect, useRef, useMemo, useState } from "react";
 import { useWorkoutStore } from "../../store/workoutStore";
-
-// ✅ registrar solo lo necesario (tree-shaking)
-Chart.register(
-  LineController,
-  LineElement,
-  PointElement,
-  LinearScale,
-  CategoryScale,
-  Tooltip,
-  Filler,
-);
 
 const grupoColores = {
   Pecho: "#3b82f6",
@@ -45,13 +24,15 @@ export default function ProgressChart() {
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
 
+  const [chartReady, setChartReady] = useState(false);
+
   const historialPorNivel = useWorkoutStore((s) => s.historialPorNivel);
   const nivelActivo = useWorkoutStore((s) => s.nivelActivo);
 
   const historialSeries = historialPorNivel[nivelActivo] || [];
   const colorNivel = nivelColores[nivelActivo] || "#22c55e";
 
-  // ✅ MEMO: evita cálculos en cada render
+  // ✅ MEMO
   const { labels, data, progreso, completados, total } = useMemo(() => {
     const total = historialSeries.length;
 
@@ -59,93 +40,107 @@ export default function ProgressChart() {
       .filter((e) => e.completado && e.tiempo !== null)
       .sort((a, b) => a.tiempo - b.tiempo);
 
-    const labels = [
-      "Inicio",
-      ...hechos.map((e) =>
-        e.ejercicio.length > 14 ? e.ejercicio.slice(0, 14) + "…" : e.ejercicio,
-      ),
-    ];
-
-    const data = [
-      0,
-      ...hechos.map((_, i) => Math.round(((i + 1) / total) * 100)),
-    ];
-
-    const progreso = total ? Math.round((hechos.length / total) * 100) : 0;
-
     return {
-      labels,
-      data,
-      progreso,
+      labels: [
+        "Inicio",
+        ...hechos.map((e) =>
+          e.ejercicio.length > 14
+            ? e.ejercicio.slice(0, 14) + "…"
+            : e.ejercicio,
+        ),
+      ],
+      data: [0, ...hechos.map((_, i) => Math.round(((i + 1) / total) * 100))],
+      progreso: total ? Math.round((hechos.length / total) * 100) : 0,
       completados: hechos.length,
       total,
     };
   }, [historialSeries]);
 
+  // 🚀 DIFERIR CARGA (clave para performance)
   useEffect(() => {
-    if (!canvasRef.current) return;
+    const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 300));
 
-    // 🚀 UPDATE SIN REFLOW PESADO
-    if (chartRef.current) {
-      chartRef.current.data.labels = labels;
-      chartRef.current.data.datasets[0].data = data;
-      chartRef.current.data.datasets[0].borderColor = colorNivel;
-      chartRef.current.data.datasets[0].backgroundColor = colorNivel + "15";
+    idle(() => setChartReady(true));
+  }, []);
 
-      chartRef.current.update("none"); // 🔥 clave performance
-      return;
-    }
+  // 🚀 CARGA DINÁMICA DE CHART.JS
+  useEffect(() => {
+    if (!chartReady || !canvasRef.current) return;
 
-    // ✅ CREACIÓN INICIAL
-    chartRef.current = new Chart(canvasRef.current, {
-      type: "line",
-      data: {
-        labels,
-        datasets: [
-          {
-            label: `Progreso ${nivelLabels[nivelActivo] || ""}`,
-            data,
-            borderColor: colorNivel,
-            backgroundColor: colorNivel + "15",
-            borderWidth: 2,
-            pointRadius: 4,
-            tension: 0.4,
-            fill: true,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: false, // 🔥 eliminar animaciones
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: (item) => ` ${item.raw}%`,
+    let mounted = true;
+
+    import("chart.js").then((mod) => {
+      if (!mounted) return;
+
+      const {
+        Chart,
+        LineController,
+        LineElement,
+        PointElement,
+        LinearScale,
+        CategoryScale,
+        Tooltip,
+        Filler,
+      } = mod;
+
+      Chart.register(
+        LineController,
+        LineElement,
+        PointElement,
+        LinearScale,
+        CategoryScale,
+        Tooltip,
+        Filler,
+      );
+
+      chartRef.current = new Chart(canvasRef.current, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            {
+              data,
+              borderColor: colorNivel,
+              backgroundColor: colorNivel + "15",
+              borderWidth: 2,
+              pointRadius: 3,
+              tension: 0.4,
+              fill: true,
             },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: {
+              min: 0,
+              max: 100,
+              ticks: { callback: (v) => v + "%" },
+            },
+            x: { grid: { display: false } },
           },
         },
-        scales: {
-          y: {
-            min: 0,
-            max: 100,
-            ticks: {
-              callback: (v) => v + "%",
-            },
-          },
-          x: {
-            grid: { display: false },
-          },
-        },
-      },
+      });
     });
 
     return () => {
+      mounted = false;
       chartRef.current?.destroy();
       chartRef.current = null;
     };
-  }, [labels, data, colorNivel, nivelActivo]);
+  }, [chartReady]);
+
+  // 🚀 SOLO UPDATE (no recrear)
+  useEffect(() => {
+    if (!chartRef.current) return;
+
+    chartRef.current.data.labels = labels;
+    chartRef.current.data.datasets[0].data = data;
+    chartRef.current.update("none");
+  }, [labels, data]);
 
   return (
     <div className="chart-wrap">
@@ -178,13 +173,13 @@ export default function ProgressChart() {
         ))}
       </div>
 
-      <canvas ref={canvasRef} style={{ flex: 1 }} />
+      {/* ✅ evita CLS */}
+      <div style={{ height: 220 }}>
+        <canvas ref={canvasRef} />
+      </div>
 
       {!completados && (
-        <div className="chart-vacio">
-          <i className=""></i>
-          Marca ejercicios para ver tu progreso
-        </div>
+        <div className="chart-vacio">Marca ejercicios para ver tu progreso</div>
       )}
     </div>
   );
