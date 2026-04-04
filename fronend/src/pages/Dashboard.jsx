@@ -11,11 +11,8 @@ export default function Dashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if ("requestIdleCallback" in window) {
-      requestIdleCallback(() => cargarProgreso());
-    } else {
-      setTimeout(() => cargarProgreso(), 200);
-    }
+    const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 200));
+    idle(() => cargarProgreso());
   }, [cargarProgreso]);
 
   const handleLogout = () => {
@@ -29,11 +26,13 @@ export default function Dashboard() {
         <div className="navbar-brand">GymApp</div>
         <div className="navbar-right">
           <span className="user-email">{user?.email}</span>
+
           {user?.role === "admin" && (
             <Link to="/admin" className="btn-admin">
               Admin
             </Link>
           )}
+
           <button className="btn-logout" onClick={handleLogout}>
             Salir
           </button>
@@ -42,15 +41,17 @@ export default function Dashboard() {
 
       <main className="container">
         <div className="hero">
-          <div className="hero-chart" style={{ minHeight: 300, width: "100%" }}>
+          <div className="hero-chart" style={{ minHeight: 300 }}>
             <h1>Bienvenido{user ? `, ${user.name}` : ""}</h1>
             <h2>Tu progreso</h2>
-            <ProgressChart /> {/* carga inmediata, interactivo */}
+
+            {/* ✅ SIN lazy */}
+            <ProgressChart />
           </div>
         </div>
 
         <div style={{ minHeight: 200 }}>
-          <PlanRutinas /> {/* carga inmediata, interactivo */}
+          <PlanRutinas />
         </div>
       </main>
     </div>
